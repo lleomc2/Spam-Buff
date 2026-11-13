@@ -6,9 +6,9 @@
   },
   "id": "lleomc.spambuff",
   "name": "Spam Buff",
-  "version": "v1.2.0",
+  "version": "v1.3.0",
   "developer": "lleomc",
-  "description": "Dos modos para la Wave: sincronizacion de toques y spam automatico al mantener presionado.",
+  "description": "Wave manual con un dedo y spam automatico al mantener dos dedos presionados.",
   "tags": ["gameplay", "utility"],
   "settings": {
     "enabled": {
@@ -26,7 +26,7 @@
     "hold-spam-enabled": {
       "type": "bool",
       "name": "Modo 2: Spam al mantener",
-      "description": "Al mantener presionado, alterna automaticamente la Wave. Al soltar o morir, se libera el boton.",
+      "description": "Un dedo controla la Wave normalmente. Al mantener dos dedos, se activa el spam automatico; al volver a uno, recuperas el control manual.",
       "default": false
     },
     "hold-spam-interval": {
