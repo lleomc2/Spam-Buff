@@ -48,8 +48,8 @@ int holdInterval() {
 
 void refreshAutoButton() {
     if (!g_autoButton) return;
-    auto text = g_state.autoSpamEnabled ? "AUTO ON" : "AUTO OFF";
-    auto sprite = ButtonSprite::create(text, "goldFont.fnt", "GJ_button_01.png", 0.7f);
+    auto text = g_state.autoSpamEnabled ? "SPAM ON" : "SPAM OFF";
+    auto sprite = ButtonSprite::create(text, "goldFont.fnt", "GJ_button_01.png", 0.85f);
     if (sprite) g_autoButton->setNormalImage(sprite);
 }
 
@@ -94,8 +94,6 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
         auto* player = spambuff::getPlayer(this, isPlayer1);
         const bool isWave = player && player->m_isDart && !player->m_isDead;
 
-        // When automatic mode is enabled, physical taps must not fight
-        // the generated Wave input. The overlay button remains independent.
         if (spambuff::isEnabled() && state.autoSpamEnabled &&
             button == 1 && isWave) {
             return;
@@ -181,25 +179,39 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
 };
 
 class $modify(SpamBuffPlayLayer, PlayLayer) {
-    void onEnter() {
-        PlayLayer::onEnter();
+    bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
+        if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
+        // Build the floating toggle after the level UI has been initialized.
         auto winSize = CCDirector::sharedDirector()->getWinSize();
         auto menu = CCMenu::create();
-        if (!menu) return;
+        if (!menu) return true;
         menu->setPosition({ 0.f, 0.f });
+        menu->setID("spambuff-floating-menu"_spr);
 
-        auto sprite = ButtonSprite::create("AUTO OFF", "goldFont.fnt", "GJ_button_01.png", 0.7f);
-        if (!sprite) return;
+        auto sprite = ButtonSprite::create(
+            "SPAM OFF", "goldFont.fnt", "GJ_button_01.png", 0.85f
+        );
+        if (!sprite) return true;
 
         spambuff::g_autoButton = CCMenuItemSpriteExtra::create(
             sprite, this, menu_selector(SpamBuffPlayLayer::onAutoSpam)
         );
-        if (!spambuff::g_autoButton) return;
+        if (!spambuff::g_autoButton) return true;
 
-        spambuff::g_autoButton->setPosition({ winSize.width - 78.f, 48.f });
+        // Keep it away from the normal jump area: a visible floating control
+        // at the right side of the play screen.
+        spambuff::g_autoButton->setPosition({
+            winSize.width - 72.f,
+            winSize.height * 0.52f
+        });
+        spambuff::g_autoButton->setID("spambuff-floating-toggle"_spr);
         menu->addChild(spambuff::g_autoButton);
-        this->addChild(menu, 1000);
+        menu->setZOrder(100000);
+        this->addChild(menu, 100000);
+
+        log::info("Spam Buff floating toggle created");
+        return true;
     }
 
     void onAutoSpam(CCObject*) {
@@ -207,7 +219,6 @@ class $modify(SpamBuffPlayLayer, PlayLayer) {
         if (!spambuff::isEnabled()) return;
         state.autoSpamEnabled = !state.autoSpamEnabled;
         if (!state.autoSpamEnabled) {
-            // The next physics step releases any synthetic hold safely.
             state.queue.clear();
         }
         spambuff::refreshAutoButton();
@@ -226,7 +237,7 @@ class $modify(SpamBuffPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Spam Buff v1.4.0 loaded");
+    log::info("Spam Buff v1.5.0 loaded");
     log::info("Tap precision: {}", spambuff::tapSyncEnabled());
     log::info("Auto spam interval: {} physics ticks", spambuff::holdInterval());
 }

@@ -6,9 +6,9 @@
   },
   "id": "lleomc.spambuff",
   "name": "Spam Buff",
-  "version": "v1.4.0",
+  "version": "v1.5.0",
   "developer": "lleomc",
-  "description": "Spam automatico de Wave con boton dentro del nivel y modo manual cuando esta apagado.",
+  "description": "Spam automatico de Wave con un interruptor flotante visible durante el nivel.",
   "tags": [
     "gameplay",
     "utility"
