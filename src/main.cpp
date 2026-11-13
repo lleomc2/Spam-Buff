@@ -1,9 +1,11 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/modify/CCEGLViewProtocol.hpp>
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <unordered_set>
 
 using namespace geode::prelude;
 
@@ -23,6 +25,11 @@ struct RuntimeState {
     bool holdButtonDown = false;
     bool holdPlayer1 = true;
     int holdTicks = 0;
+    std::unordered_set<int> activeTouches;
+    bool dualFingerActive = false;
+    bool dualBlocked = false;
+    bool restoreSingleTouch = false;
+    bool lastPlayer1 = true;
 };
 
 inline RuntimeState g_state;
@@ -88,6 +95,12 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
             return;
         }
 
+        if (button == 1) state.lastPlayer1 = isPlayer1;
+        if (button == 1 && spambuff::isEnabled() && spambuff::holdSpamEnabled()
+            && state.dualFingerActive && !state.dualBlocked) {
+            return;
+        }
+
         auto* player = spambuff::getPlayer(this, isPlayer1);
         const bool isWave = player && player->m_isDart && !player->m_isDead;
 
@@ -96,16 +109,8 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
             return;
         }
 
-        if (spambuff::holdSpamEnabled()) {
-            if (down && !state.holdActive) {
-                // Discard pending tap events before starting the other mode.
-                state.queue.clear();
-                state.holdActive = true;
-                state.holdButtonDown = true;
-                state.holdPlayer1 = isPlayer1;
-                state.holdTicks = 0;
-                sendSyntheticInput(true, button, isPlayer1);
-            }
+        if (spambuff::holdSpamEnabled() && state.dualFingerActive && !state.dualBlocked) {
+            // Dual-finger activation is handled on physics ticks; a lone finger stays manual.
             return;
         }
 
@@ -156,26 +161,75 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
             }
         }
 
+        const bool dualMode = enabled && spambuff::holdSpamEnabled()
+            && state.dualFingerActive && !state.dualBlocked;
         if (state.holdActive) {
             auto* player = spambuff::getPlayer(this, state.holdPlayer1);
-            const bool canContinue = enabled && spambuff::holdSpamEnabled()
-                && player && player->m_isDart && !player->m_isDead;
-
+            const bool canContinue = dualMode && player && player->m_isDart && !player->m_isDead;
             if (!canContinue) {
+                if (state.dualFingerActive && (!player || player->m_isDead)) state.dualBlocked = true;
                 stopHold();
             } else {
                 ++state.holdTicks;
                 if (state.holdTicks >= spambuff::holdInterval()) {
                     state.holdTicks = 0;
                     state.holdButtonDown = !state.holdButtonDown;
-                    sendSyntheticInput(
-                        state.holdButtonDown, 1, state.holdPlayer1
-                    );
+                    sendSyntheticInput(state.holdButtonDown, 1, state.holdPlayer1);
                 }
+            }
+        } else if (dualMode) {
+            auto* player = spambuff::getPlayer(this, state.lastPlayer1);
+            if (player && player->m_isDart && !player->m_isDead) {
+                state.queue.clear();
+                state.holdActive = true;
+                state.holdButtonDown = true;
+                state.holdPlayer1 = state.lastPlayer1;
+                state.holdTicks = 0;
+                sendSyntheticInput(true, 1, state.holdPlayer1);
+            }
+        }
+
+        if (state.restoreSingleTouch) {
+            state.restoreSingleTouch = false;
+            auto* player = spambuff::getPlayer(this, state.lastPlayer1);
+            if (enabled && spambuff::holdSpamEnabled() && state.activeTouches.size() == 1
+                && player && player->m_isDart && !player->m_isDead) {
+                sendSyntheticInput(true, 1, state.lastPlayer1);
             }
         }
 
         GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
+    }
+};
+
+class $modify(SpamBuffTouchView, CCEGLViewProtocol) {
+    void handleTouchesBegin(int num, int ids[], float xs[], float ys[], double timestamp) {
+        auto& state = spambuff::g_state;
+        for (int i = 0; i < num; ++i) state.activeTouches.insert(ids[i]);
+        state.dualFingerActive = state.activeTouches.size() >= 2;
+        CCEGLViewProtocol::handleTouchesBegin(num, ids, xs, ys, timestamp);
+    }
+
+    void handleTouchesEnd(int num, int ids[], float xs[], float ys[], double timestamp) {
+        auto& state = spambuff::g_state;
+        const bool wasDual = state.dualFingerActive;
+        for (int i = 0; i < num; ++i) state.activeTouches.erase(ids[i]);
+        state.dualFingerActive = state.activeTouches.size() >= 2;
+        if (wasDual && !state.dualFingerActive && state.activeTouches.size() == 1
+            && spambuff::holdSpamEnabled()) state.restoreSingleTouch = true;
+        if (state.activeTouches.size() < 2) state.dualBlocked = false;
+        CCEGLViewProtocol::handleTouchesEnd(num, ids, xs, ys, timestamp);
+    }
+
+    void handleTouchesCancel(int num, int ids[], float xs[], float ys[], double timestamp) {
+        auto& state = spambuff::g_state;
+        const bool wasDual = state.dualFingerActive;
+        for (int i = 0; i < num; ++i) state.activeTouches.erase(ids[i]);
+        state.dualFingerActive = state.activeTouches.size() >= 2;
+        if (wasDual && !state.dualFingerActive && state.activeTouches.size() == 1
+            && spambuff::holdSpamEnabled()) state.restoreSingleTouch = true;
+        if (state.activeTouches.size() < 2) state.dualBlocked = false;
+        CCEGLViewProtocol::handleTouchesCancel(num, ids, xs, ys, timestamp);
     }
 };
 
@@ -192,7 +246,7 @@ class $modify(SpamBuffPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Spam Buff v1.2.0 loaded");
+    log::info("Spam Buff v1.3.0 loaded");
     log::info("Tap precision: {}", spambuff::tapSyncEnabled());
     log::info("Hold spam: {}", spambuff::holdSpamEnabled());
     log::info("Hold interval: {} physics ticks", spambuff::holdInterval());
