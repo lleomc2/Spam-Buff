@@ -21,6 +21,7 @@ struct RuntimeState {
     bool forwardingInput = false;
     bool holdActive = false;
     bool holdButtonDown = false;
+    bool holdPlayer1 = true;
     int holdTicks = 0;
 };
 
@@ -84,6 +85,7 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
                 if (!state.holdActive) {
                     state.holdActive = true;
                     state.holdButtonDown = true;
+                    state.holdPlayer1 = isPlayer1;
                     state.holdTicks = 0;
                     sendSyntheticInput(true, button, isPlayer1);
                 }
@@ -139,7 +141,7 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
         // If the setting is switched off or the player leaves Wave while
         // the finger is held, release the synthetic button cleanly.
         if (state.holdActive) {
-            auto* player = spambuff::getPlayer(this, true);
+            auto* player = spambuff::getPlayer(this, state.holdPlayer1);
             const bool canContinue = enabled && spambuff::holdSpamEnabled()
                 && player && player->m_isDart && !player->m_isDead;
 
@@ -147,7 +149,7 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
                 state.holdActive = false;
                 state.holdTicks = 0;
                 if (state.holdButtonDown) {
-                    sendSyntheticInput(false, 1, true);
+                    sendSyntheticInput(false, 1, state.holdPlayer1);
                     state.holdButtonDown = false;
                 }
             } else {
@@ -155,7 +157,7 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
                 if (state.holdTicks >= spambuff::holdInterval()) {
                     state.holdTicks = 0;
                     state.holdButtonDown = !state.holdButtonDown;
-                    sendSyntheticInput(state.holdButtonDown, 1, true);
+                    sendSyntheticInput(state.holdButtonDown, 1, state.holdPlayer1);
                 }
             }
         }
