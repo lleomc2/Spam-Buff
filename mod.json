@@ -6,9 +6,9 @@
   },
   "id": "lleomc.spambuff",
   "name": "Spam Buff",
-  "version": "v1.1.0",
+  "version": "v1.2.0",
   "developer": "lleomc",
-  "description": "Dos modos para la Wave: precision de toque y spam automatico al mantener presionado.",
+  "description": "Dos modos para la Wave: sincronizacion de toques y spam automatico al mantener presionado.",
   "tags": ["gameplay", "utility"],
   "settings": {
     "enabled": {
@@ -20,13 +20,13 @@
     "tap-sync-enabled": {
       "type": "bool",
       "name": "Modo 1: Precision de toque",
-      "description": "Alinea cada toque manual con el siguiente tick de fisica. No crea pulsaciones nuevas.",
+      "description": "Programa cada cambio de toque en ticks de fisica consecutivos para evitar que un toque muy corto desaparezca.",
       "default": true
     },
     "hold-spam-enabled": {
       "type": "bool",
       "name": "Modo 2: Spam al mantener",
-      "description": "Al mantener presionado, alterna automaticamente la Wave. Al soltar, se detiene.",
+      "description": "Al mantener presionado, alterna automaticamente la Wave. Al soltar o morir, se libera el boton.",
       "default": false
     },
     "hold-spam-interval": {
