@@ -6,10 +6,13 @@
   },
   "id": "lleomc.spambuff",
   "name": "Spam Buff",
-  "version": "v1.3.0",
+  "version": "v1.4.0",
   "developer": "lleomc",
-  "description": "Wave manual con un dedo y spam automatico al mantener dos dedos presionados.",
-  "tags": ["gameplay", "utility"],
+  "description": "Spam automatico de Wave con boton dentro del nivel y modo manual cuando esta apagado.",
+  "tags": [
+    "gameplay",
+    "utility"
+  ],
   "settings": {
     "enabled": {
       "type": "bool",
@@ -23,16 +26,10 @@
       "description": "Programa cada cambio de toque en ticks de fisica consecutivos para evitar que un toque muy corto desaparezca.",
       "default": true
     },
-    "hold-spam-enabled": {
-      "type": "bool",
-      "name": "Modo 2: Spam al mantener",
-      "description": "Un dedo controla la Wave normalmente. Al mantener dos dedos, se activa el spam automatico; al volver a uno, recuperas el control manual.",
-      "default": false
-    },
     "hold-spam-interval": {
       "type": "int",
-      "name": "Velocidad del spam",
-      "description": "Ticks de fisica entre cambios. Menos ticks significa spam mas rapido.",
+      "name": "Velocidad del spam automatico",
+      "description": "Ticks de fisica entre cambios de estado. Menos ticks significa spam mas rapido.",
       "default": 2,
       "min": 1,
       "max": 8
