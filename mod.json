@@ -1,0 +1,14 @@
+{
+  "geode": "5.11.2",
+  "gd": { "android": "2.2081", "win": "2.2081" },
+  "id": "lleomc.spambuff",
+  "name": "Spam Buff",
+  "version": "v1.0.0",
+  "developer": "lleomc",
+  "description": "Alinea los inputs de la Wave con los ticks de física para un control más uniforme.",
+  "tags": ["gameplay", "utility"],
+  "settings": {
+    "enabled": { "type": "bool", "name": "Activar Spam Buff", "description": "Activa el búfer de entrada de la Wave.", "default": true },
+    "wave-delay-ticks": { "type": "int", "name": "Estabilidad de la Wave", "description": "Ticks de espera. 2 es el ajuste recomendado; más ticks agregan más retraso.", "default": 2, "min": 1, "max": 4 }
+  }
+}
