@@ -1,14 +1,41 @@
 {
   "geode": "5.11.2",
-  "gd": { "android": "2.2081", "win": "2.2081" },
+  "gd": {
+    "android": "2.2081",
+    "win": "2.2081"
+  },
   "id": "lleomc.spambuff",
   "name": "Spam Buff",
-  "version": "v1.0.0",
+  "version": "v1.1.0",
   "developer": "lleomc",
-  "description": "Alinea los inputs de la Wave con los ticks de física para un control más uniforme.",
+  "description": "Dos modos para la Wave: precision de toque y spam automatico al mantener presionado.",
   "tags": ["gameplay", "utility"],
   "settings": {
-    "enabled": { "type": "bool", "name": "Activar Spam Buff", "description": "Activa el búfer de entrada de la Wave.", "default": true },
-    "wave-delay-ticks": { "type": "int", "name": "Estabilidad de la Wave", "description": "Ticks de espera. 2 es el ajuste recomendado; más ticks agregan más retraso.", "default": 2, "min": 1, "max": 4 }
+    "enabled": {
+      "type": "bool",
+      "name": "Activar Spam Buff",
+      "description": "Interruptor general del mod.",
+      "default": true
+    },
+    "tap-sync-enabled": {
+      "type": "bool",
+      "name": "Modo 1: Precision de toque",
+      "description": "Alinea cada toque manual con el siguiente tick de fisica. No crea pulsaciones nuevas.",
+      "default": true
+    },
+    "hold-spam-enabled": {
+      "type": "bool",
+      "name": "Modo 2: Spam al mantener",
+      "description": "Al mantener presionado, alterna automaticamente la Wave. Al soltar, se detiene.",
+      "default": false
+    },
+    "hold-spam-interval": {
+      "type": "int",
+      "name": "Velocidad del spam",
+      "description": "Ticks de fisica entre cambios. Menos ticks significa spam mas rapido.",
+      "default": 2,
+      "min": 1,
+      "max": 8
+    }
   }
 }
