@@ -6,9 +6,9 @@
   },
   "id": "lleomc.spambuff",
   "name": "Spam Buff",
-  "version": "v1.5.0",
+  "version": "v1.6.0",
   "developer": "lleomc",
-  "description": "Spam automatico de Wave con un interruptor flotante visible durante el nivel.",
+  "description": "Convierte el spam rapido de toques en el mismo patron de pulsacion automatica de Wave.",
   "tags": [
     "gameplay",
     "utility"
@@ -33,6 +33,28 @@
       "default": 2,
       "min": 1,
       "max": 8
+    },
+    "rapid-spam-enabled": {
+      "type": "bool",
+      "name": "Activar deteccion de spam rapido",
+      "description": "Detecta tres toques seguidos y activa el mismo patron automatico sin mantener pulsado.",
+      "default": true
+    },
+    "rapid-spam-window-ms": {
+      "type": "int",
+      "name": "Intervalo para detectar spam (ms)",
+      "description": "Tiempo maximo entre toques para reconocer spam rapido.",
+      "default": 180,
+      "min": 80,
+      "max": 400
+    },
+    "rapid-spam-release-ms": {
+      "type": "int",
+      "name": "Pausa para salir del spam rapido (ms)",
+      "description": "Tiempo sin tocar antes de volver al control normal.",
+      "default": 300,
+      "min": 150,
+      "max": 700
     }
   }
 }

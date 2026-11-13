@@ -5,6 +5,7 @@
 #include <Geode/binding/CCMenuItemSpriteExtra.hpp>
 #include <algorithm>
 #include <cstdint>
+#include <chrono>
 #include <deque>
 
 using namespace geode::prelude;
@@ -26,6 +27,9 @@ struct RuntimeState {
     bool holdPlayer1 = true;
     int holdTicks = 0;
     bool autoSpamEnabled = false;
+    bool rapidSpamActive = false;
+    int rapidTapCount = 0;
+    std::chrono::steady_clock::time_point lastRapidTapAt{};
     bool lastPlayer1 = true;
 };
 
@@ -46,9 +50,27 @@ int holdInterval() {
     );
 }
 
+bool rapidSpamEnabled() {
+    return Mod::get()->getSettingValue<bool>("rapid-spam-enabled");
+}
+
+int rapidSpamWindowMs() {
+    return std::clamp(
+        Mod::get()->getSettingValue<int>("rapid-spam-window-ms"), 80, 400
+    );
+}
+
+int rapidSpamReleaseMs() {
+    return std::clamp(
+        Mod::get()->getSettingValue<int>("rapid-spam-release-ms"), 150, 700
+    );
+}
+
 void refreshAutoButton() {
     if (!g_autoButton) return;
-    auto text = g_state.autoSpamEnabled ? "SPAM ON" : "SPAM OFF";
+    auto text = g_state.rapidSpamActive
+        ? "RAPID"
+        : (g_state.autoSpamEnabled ? "SPAM ON" : "SPAM OFF");
     auto sprite = ButtonSprite::create(text, "goldFont.fnt", "GJ_button_01.png", 0.85f);
     if (sprite) g_autoButton->setNormalImage(sprite);
 }
@@ -93,15 +115,55 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
 
         auto* player = spambuff::getPlayer(this, isPlayer1);
         const bool isWave = player && player->m_isDart && !player->m_isDead;
+        const bool enabled = spambuff::isEnabled();
 
-        if (spambuff::isEnabled() && state.autoSpamEnabled &&
-            button == 1 && isWave) {
+        // Once rapid spam is detected, physical taps become a heartbeat:
+        // they keep the automatic hold-pattern alive, but do not inject
+        // extra down/up edges that could fight the synthetic input.
+        if (enabled && button == 1 && state.rapidSpamActive) {
+            if (down) {
+                state.lastRapidTapAt = std::chrono::steady_clock::now();
+                state.holdPlayer1 = isPlayer1;
+            }
             return;
         }
 
-        if (!spambuff::isEnabled() || button != 1 || !isWave) {
+        if (enabled && state.autoSpamEnabled && button == 1 && isWave) {
+            return;
+        }
+
+        if (!enabled || button != 1 || !isWave) {
             GJBaseGameLayer::handleButton(down, button, isPlayer1);
             return;
+        }
+
+        // Three quick press edges activate the same alternating hold engine
+        // used by the floating SPAM toggle. A single long press never triggers it.
+        if (spambuff::rapidSpamEnabled() && down && !state.autoSpamEnabled) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto gap = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - state.lastRapidTapAt
+            ).count();
+
+            if (state.rapidTapCount > 0 &&
+                gap >= 0 && gap <= spambuff::rapidSpamWindowMs()) {
+                ++state.rapidTapCount;
+            } else {
+                state.rapidTapCount = 1;
+            }
+            state.lastRapidTapAt = now;
+
+            if (state.rapidTapCount >= 3) {
+                state.rapidSpamActive = true;
+                state.queue.clear();
+                state.holdActive = true;
+                state.holdButtonDown = true;
+                state.holdPlayer1 = isPlayer1;
+                state.holdTicks = 0;
+                sendSyntheticInput(true, 1, isPlayer1);
+                spambuff::refreshAutoButton();
+                return;
+            }
         }
 
         if (spambuff::tapSyncEnabled()) {
@@ -125,7 +187,18 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
         const bool enabled = spambuff::isEnabled();
         const bool tapEnabled = enabled && spambuff::tapSyncEnabled();
 
-        if (!tapEnabled || state.autoSpamEnabled) {
+        // Stop the rapid mode only after a short pause, so tiny gaps between
+        // real taps do not cause the synthetic hold to flicker off.
+        if (state.rapidSpamActive &&
+            std::chrono::steady_clock::now() - state.lastRapidTapAt >=
+                std::chrono::milliseconds(spambuff::rapidSpamReleaseMs())) {
+            state.rapidSpamActive = false;
+            state.rapidTapCount = 0;
+            if (!state.autoSpamEnabled) stopHold();
+            spambuff::refreshAutoButton();
+        }
+
+        if (!tapEnabled || state.autoSpamEnabled || state.rapidSpamActive) {
             state.queue.clear();
         } else {
             while (!state.queue.empty() &&
@@ -144,16 +217,22 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
 
         if (state.holdActive) {
             auto* player = spambuff::getPlayer(this, state.holdPlayer1);
-            const bool canContinue = enabled && state.autoSpamEnabled &&
+            const bool holdRequested =
+                state.autoSpamEnabled || state.rapidSpamActive;
+            const bool canContinue = enabled && holdRequested &&
                 player && player->m_isDart && !player->m_isDead;
 
             if (!canContinue) {
                 const bool died = !player || player->m_isDead;
                 stopHold();
+                if (state.rapidSpamActive) {
+                    state.rapidSpamActive = false;
+                    state.rapidTapCount = 0;
+                }
                 if (died && state.autoSpamEnabled) {
                     state.autoSpamEnabled = false;
-                    spambuff::refreshAutoButton();
                 }
+                spambuff::refreshAutoButton();
             } else {
                 ++state.holdTicks;
                 if (state.holdTicks >= spambuff::holdInterval()) {
@@ -162,7 +241,8 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
                     sendSyntheticInput(state.holdButtonDown, 1, state.holdPlayer1);
                 }
             }
-        } else if (enabled && state.autoSpamEnabled) {
+        } else if (enabled &&
+                   (state.autoSpamEnabled || state.rapidSpamActive)) {
             auto* player = spambuff::getPlayer(this, state.lastPlayer1);
             if (player && player->m_isDart && !player->m_isDead) {
                 state.queue.clear();
@@ -240,4 +320,5 @@ $on_mod(Loaded) {
     log::info("Spam Buff v1.5.0 loaded");
     log::info("Tap precision: {}", spambuff::tapSyncEnabled());
     log::info("Auto spam interval: {} physics ticks", spambuff::holdInterval());
+    log::info("Rapid spam detection: {}", spambuff::rapidSpamEnabled());
 }
