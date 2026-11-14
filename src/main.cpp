@@ -3,11 +3,9 @@
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/loader/GameEvent.hpp>
 #include <Geode/loader/SettingV3.hpp>
-#include <Geode/binding/ButtonSprite.hpp>
-#include <Geode/binding/CCMenuItemSpriteExtra.hpp>
 #include <algorithm>
-#include <cstdint>
 #include <chrono>
+#include <cstdint>
 #include <deque>
 
 using namespace geode::prelude;
@@ -27,7 +25,7 @@ struct RuntimeState {
     bool holdActive = false;
     bool holdButtonDown = false;
     bool holdPlayer1 = true;
-    int holdTicks = 0;
+    std::chrono::steady_clock::time_point nextHoldTransitionAt{};
     bool autoSpamEnabled = false;
     bool rapidSpamActive = false;
     int rapidTapCount = 0;
@@ -36,7 +34,13 @@ struct RuntimeState {
 };
 
 inline RuntimeState g_state;
-inline CCMenuItemSpriteExtra* g_autoButton = nullptr;
+
+int intSetting(const char* name, int minimum, int maximum) {
+    const auto value = Mod::get()->getSettingValue<std::int64_t>(name);
+    return static_cast<int>(
+        std::clamp<std::int64_t>(value, minimum, maximum)
+    );
+}
 
 bool isEnabled() {
     return Mod::get()->getSettingValue<bool>("enabled");
@@ -46,10 +50,14 @@ bool tapSyncEnabled() {
     return Mod::get()->getSettingValue<bool>("tap-sync-enabled");
 }
 
-int holdInterval() {
-    return std::clamp(
-        Mod::get()->getSettingValue<int>("hold-spam-interval"), 1, 8
-    );
+int autoSpamCps() {
+    // One CPS is one complete press + release cycle per second.
+    return intSetting("auto-spam-cps", 1, 20);
+}
+
+std::chrono::microseconds holdHalfCycle() {
+    // A click has two edges: press and release. Divide the second in half.
+    return std::chrono::microseconds(500000 / autoSpamCps());
 }
 
 bool rapidSpamEnabled() {
@@ -57,19 +65,11 @@ bool rapidSpamEnabled() {
 }
 
 int rapidSpamWindowMs() {
-    return std::clamp(
-        Mod::get()->getSettingValue<int>("rapid-spam-window-ms"), 80, 400
-    );
+    return intSetting("rapid-spam-window-ms", 80, 400);
 }
 
 int rapidSpamReleaseMs() {
-    return std::clamp(
-        Mod::get()->getSettingValue<int>("rapid-spam-release-ms"), 150, 700
-    );
-}
-
-void refreshAutoButton() {
-    // El interruptor visual fue reemplazado por la tecla configurable de Geode.
+    return intSetting("rapid-spam-release-ms", 150, 700);
 }
 
 void toggleAutoSpam() {
@@ -87,7 +87,6 @@ PlayerObject* getPlayer(GJBaseGameLayer* layer, bool player1) {
 
 void reset() {
     g_state = RuntimeState{};
-    refreshAutoButton();
 }
 }
 
@@ -106,7 +105,7 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
         }
         state.holdActive = false;
         state.holdButtonDown = false;
-        state.holdTicks = 0;
+        state.nextHoldTransitionAt = {};
     }
 
     void handleButton(bool down, int button, bool isPlayer1) {
@@ -123,9 +122,8 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
         const bool isWave = player && player->m_isDart && !player->m_isDead;
         const bool enabled = spambuff::isEnabled();
 
-        // Once rapid spam is detected, physical taps become a heartbeat:
-        // they keep the automatic hold-pattern alive, but do not inject
-        // extra down/up edges that could fight the synthetic input.
+        // In rapid mode, physical taps act as a heartbeat. They keep the
+        // automatic pattern alive without injecting competing down/up edges.
         if (enabled && button == 1 && state.rapidSpamActive) {
             if (down) {
                 state.lastRapidTapAt = std::chrono::steady_clock::now();
@@ -143,8 +141,8 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
             return;
         }
 
-        // Three quick press edges activate the same alternating hold engine
-        // used by the floating SPAM toggle. A single long press never triggers it.
+        // Three quick press edges activate the same timed engine as the
+        // B-key toggle. A single long press never activates rapid mode.
         if (spambuff::rapidSpamEnabled() && down && !state.autoSpamEnabled) {
             const auto now = std::chrono::steady_clock::now();
             const auto gap = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -165,14 +163,15 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
                 state.holdActive = true;
                 state.holdButtonDown = true;
                 state.holdPlayer1 = isPlayer1;
-                state.holdTicks = 0;
+                state.nextHoldTransitionAt = now + spambuff::holdHalfCycle();
                 sendSyntheticInput(true, 1, isPlayer1);
-                spambuff::refreshAutoButton();
                 return;
             }
         }
 
         if (spambuff::tapSyncEnabled()) {
+            // Each edge gets its own physics tick, so a very short tap cannot
+            // have its press and release collapsed into the same simulation step.
             const std::uint64_t nextTick = state.physicsTick + 1;
             const std::uint64_t afterPrevious = state.queue.empty()
                 ? nextTick
@@ -193,15 +192,14 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
         const bool enabled = spambuff::isEnabled();
         const bool tapEnabled = enabled && spambuff::tapSyncEnabled();
 
-        // Stop the rapid mode only after a short pause, so tiny gaps between
-        // real taps do not cause the synthetic hold to flicker off.
+        // Let rapid mode survive small gaps between consecutive real taps.
+        const auto now = std::chrono::steady_clock::now();
         if (state.rapidSpamActive &&
-            std::chrono::steady_clock::now() - state.lastRapidTapAt >=
+            now - state.lastRapidTapAt >=
                 std::chrono::milliseconds(spambuff::rapidSpamReleaseMs())) {
             state.rapidSpamActive = false;
             state.rapidTapCount = 0;
             if (!state.autoSpamEnabled) stopHold();
-            spambuff::refreshAutoButton();
         }
 
         if (!tapEnabled || state.autoSpamEnabled || state.rapidSpamActive) {
@@ -238,13 +236,16 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
                 if (died && state.autoSpamEnabled) {
                     state.autoSpamEnabled = false;
                 }
-                spambuff::refreshAutoButton();
             } else {
-                ++state.holdTicks;
-                if (state.holdTicks >= spambuff::holdInterval()) {
-                    state.holdTicks = 0;
+                // Use a monotonic timer instead of counting processCommands
+                // calls. This keeps the selected CPS stable across frame rates
+                // and avoids sending a burst of stale clicks after a frame hitch.
+                const auto tickNow = std::chrono::steady_clock::now();
+                if (tickNow >= state.nextHoldTransitionAt) {
                     state.holdButtonDown = !state.holdButtonDown;
                     sendSyntheticInput(state.holdButtonDown, 1, state.holdPlayer1);
+                    state.nextHoldTransitionAt =
+                        tickNow + spambuff::holdHalfCycle();
                 }
             }
         } else if (enabled &&
@@ -255,7 +256,8 @@ class $modify(SpamBuffBaseGameLayer, GJBaseGameLayer) {
                 state.holdActive = true;
                 state.holdButtonDown = true;
                 state.holdPlayer1 = state.lastPlayer1;
-                state.holdTicks = 0;
+                state.nextHoldTransitionAt =
+                    std::chrono::steady_clock::now() + spambuff::holdHalfCycle();
                 sendSyntheticInput(true, 1, state.holdPlayer1);
             }
         }
@@ -268,8 +270,7 @@ class $modify(SpamBuffPlayLayer, PlayLayer) {
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
         if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
-        // No crear el botón flotante: el modo automático se controla con B.
-        spambuff::g_autoButton = nullptr;
+        // The automatic mode is controlled by the configurable Geode keybind.
         return true;
     }
 
@@ -280,24 +281,22 @@ class $modify(SpamBuffPlayLayer, PlayLayer) {
 
     void onQuit() {
         spambuff::reset();
-        spambuff::g_autoButton = nullptr;
         PlayLayer::onQuit();
     }
 };
 
 $on_mod(Loaded) {
-    log::info("Spam Buff v1.7.0 loaded");
-    log::info("Tap precision: {}", spambuff::tapSyncEnabled());
-    log::info("Auto spam interval: {} physics ticks", spambuff::holdInterval());
+    log::info("Spam Buff v1.8.0 loaded");
+    log::info("Tap precision sync: {}", spambuff::tapSyncEnabled());
+    log::info("Automatic spam speed: {} CPS", spambuff::autoSpamCps());
     log::info("Rapid spam detection: {}", spambuff::rapidSpamEnabled());
 }
-
 
 $on_game(Loaded) {
     listenForKeybindSettingPresses(
         "toggle-auto-spam-key",
         [](Keybind const&, bool down, bool repeat, double) {
-            // Alternar solo al presionar B, ignorando la repetición al mantenerla.
+            // Toggle once on key-down; ignore repeats while B is held.
             if (!down || repeat || !spambuff::isEnabled()) return;
 
             spambuff::toggleAutoSpam();
