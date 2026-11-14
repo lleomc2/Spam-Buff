@@ -1,17 +1,14 @@
-# Spam Buff — proyecto Geode
+# Spam Buff v1.7.0
 
-**Objetivo:** ordenar la entrega de eventos de pulsar/soltar de la Wave con los pasos de física. No hace autoclick ni inventa pulsaciones: el control sigue siendo manual.
+**Control por teclado:** pulsa **B** durante un nivel para alternar entre **SPAM ON** y **SPAM OFF**. El botón flotante de pantalla fue eliminado.
 
 ## Configuración
-- Activado por defecto.
-- Estabilidad ajustable entre 1 y 4 ticks (2 por defecto).
-- Solo interviene en el botón normal mientras el jugador está en Wave.
-- Reiniciar o salir del nivel limpia los eventos pendientes.
+- La tecla se puede cambiar desde los ajustes de Geode.
+- La tecla predeterminada es **B**.
+- Cada pulsación alterna el modo automático; mantener B presionada no lo repite.
+- El modo automático usa el patrón de pulsación de Wave que ya implementa Spam Buff.
+- La detección de spam rápido y la precisión de toque se mantienen disponibles.
+- Compatibilidad objetivo: Geometry Dash 2.2081, Geode 5.11.2 y Android ARM64.
 
-## Compatibilidad declarada
-- Geometry Dash 2.2081
-- Geode 5.11.2
-- Android ARM64 (objetivo de compilación)
-
-## Estado
-Este repositorio contiene el código fuente. La compilación Android se ejecuta con GitHub Actions y publica el archivo .geode como artefacto. El código todavía debe superar la compilación y probarse en el juego; no se garantiza que el comportamiento sea correcto hasta entonces.
+## Compilación
+El proyecto se compila mediante GitHub Actions para Android64 y publica el archivo .geode como artefacto.
