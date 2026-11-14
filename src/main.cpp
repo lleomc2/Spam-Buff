@@ -1,6 +1,8 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/loader/GameEvent.hpp>
+#include <Geode/loader/SettingV3.hpp>
 #include <Geode/binding/ButtonSprite.hpp>
 #include <Geode/binding/CCMenuItemSpriteExtra.hpp>
 #include <algorithm>
@@ -67,12 +69,16 @@ int rapidSpamReleaseMs() {
 }
 
 void refreshAutoButton() {
-    if (!g_autoButton) return;
-    auto text = g_state.rapidSpamActive
-        ? "RAPID"
-        : (g_state.autoSpamEnabled ? "SPAM ON" : "SPAM OFF");
-    auto sprite = ButtonSprite::create(text, "goldFont.fnt", "GJ_button_01.png", 0.85f);
-    if (sprite) g_autoButton->setNormalImage(sprite);
+    // El interruptor visual fue reemplazado por la tecla configurable de Geode.
+}
+
+void toggleAutoSpam() {
+    if (!isEnabled()) return;
+
+    g_state.autoSpamEnabled = !g_state.autoSpamEnabled;
+    if (!g_state.autoSpamEnabled) {
+        g_state.queue.clear();
+    }
 }
 
 PlayerObject* getPlayer(GJBaseGameLayer* layer, bool player1) {
@@ -262,46 +268,9 @@ class $modify(SpamBuffPlayLayer, PlayLayer) {
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
         if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
-        // Build the floating toggle after the level UI has been initialized.
-        auto winSize = CCDirector::sharedDirector()->getWinSize();
-        auto menu = CCMenu::create();
-        if (!menu) return true;
-        menu->setPosition({ 0.f, 0.f });
-        menu->setID("spambuff-floating-menu"_spr);
-
-        auto sprite = ButtonSprite::create(
-            "SPAM OFF", "goldFont.fnt", "GJ_button_01.png", 0.85f
-        );
-        if (!sprite) return true;
-
-        spambuff::g_autoButton = CCMenuItemSpriteExtra::create(
-            sprite, this, menu_selector(SpamBuffPlayLayer::onAutoSpam)
-        );
-        if (!spambuff::g_autoButton) return true;
-
-        // Keep it away from the normal jump area: a visible floating control
-        // at the right side of the play screen.
-        spambuff::g_autoButton->setPosition({
-            winSize.width - 72.f,
-            winSize.height * 0.52f
-        });
-        spambuff::g_autoButton->setID("spambuff-floating-toggle"_spr);
-        menu->addChild(spambuff::g_autoButton);
-        menu->setZOrder(100000);
-        this->addChild(menu, 100000);
-
-        log::info("Spam Buff floating toggle created");
+        // No crear el botón flotante: el modo automático se controla con B.
+        spambuff::g_autoButton = nullptr;
         return true;
-    }
-
-    void onAutoSpam(CCObject*) {
-        auto& state = spambuff::g_state;
-        if (!spambuff::isEnabled()) return;
-        state.autoSpamEnabled = !state.autoSpamEnabled;
-        if (!state.autoSpamEnabled) {
-            state.queue.clear();
-        }
-        spambuff::refreshAutoButton();
     }
 
     void resetLevel() {
@@ -317,8 +286,25 @@ class $modify(SpamBuffPlayLayer, PlayLayer) {
 };
 
 $on_mod(Loaded) {
-    log::info("Spam Buff v1.5.0 loaded");
+    log::info("Spam Buff v1.7.0 loaded");
     log::info("Tap precision: {}", spambuff::tapSyncEnabled());
     log::info("Auto spam interval: {} physics ticks", spambuff::holdInterval());
     log::info("Rapid spam detection: {}", spambuff::rapidSpamEnabled());
+}
+
+
+$on_game(Loaded) {
+    listenForKeybindSettingPresses(
+        "toggle-auto-spam-key",
+        [](Keybind const&, bool down, bool repeat, double) {
+            // Alternar solo al presionar B, ignorando la repetición al mantenerla.
+            if (!down || repeat || !spambuff::isEnabled()) return;
+
+            spambuff::toggleAutoSpam();
+            log::info(
+                "Spam Buff automatic mode: {}",
+                spambuff::g_state.autoSpamEnabled ? "ON" : "OFF"
+            );
+        }
+    );
 }
