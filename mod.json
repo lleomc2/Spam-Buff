@@ -6,9 +6,9 @@
   },
   "id": "lleomc.spambuff",
   "name": "Spam Buff",
-  "version": "v1.7.0",
+  "version": "v1.8.0",
   "developer": "lleomc",
-  "description": "Activa o desactiva el spam automático de Wave con una tecla configurable (B por defecto), sin botón flotante.",
+  "description": "Spam automático de Wave con velocidad configurable hasta 20 CPS, sincronización de toques y tecla B configurable.",
   "tags": [
     "gameplay",
     "utility"
@@ -22,35 +22,35 @@
     },
     "tap-sync-enabled": {
       "type": "bool",
-      "name": "Modo 1: Precision de toque",
-      "description": "Programa cada cambio de toque en ticks de fisica consecutivos para evitar que un toque muy corto desaparezca.",
+      "name": "Precisión de toque",
+      "description": "Programa cada pulsación y liberación en ticks de física consecutivos para evitar que los toques muy cortos se pierdan.",
       "default": true
     },
-    "hold-spam-interval": {
+    "auto-spam-cps": {
       "type": "int",
-      "name": "Velocidad del spam automatico",
-      "description": "Ticks de fisica entre cambios de estado. Menos ticks significa spam mas rapido.",
-      "default": 2,
+      "name": "Velocidad del spam (CPS)",
+      "description": "Clics completos por segundo. Puedes ajustarlo de 1 a 20; cada clic alterna presionar y soltar.",
+      "default": 20,
       "min": 1,
-      "max": 8
+      "max": 20
     },
     "rapid-spam-enabled": {
       "type": "bool",
-      "name": "Activar deteccion de spam rapido",
-      "description": "Detecta tres toques seguidos y activa el mismo patron automatico sin mantener pulsado.",
+      "name": "Activar detección de spam rápido",
+      "description": "Detecta tres toques seguidos y activa el mismo patrón automático sin mantener pulsado.",
       "default": true
     },
     "rapid-spam-window-ms": {
       "type": "int",
       "name": "Intervalo para detectar spam (ms)",
-      "description": "Tiempo maximo entre toques para reconocer spam rapido.",
+      "description": "Tiempo máximo entre toques para reconocer spam.",
       "default": 180,
       "min": 80,
       "max": 400
     },
     "rapid-spam-release-ms": {
       "type": "int",
-      "name": "Pausa para salir del spam rapido (ms)",
+      "name": "Pausa para salir del spam rápido (ms)",
       "description": "Tiempo sin tocar antes de volver al control normal.",
       "default": 300,
       "min": 150,
