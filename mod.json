@@ -6,9 +6,9 @@
   },
   "id": "lleomc.spambuff",
   "name": "Spam Buff",
-  "version": "v1.6.0",
+  "version": "v1.7.0",
   "developer": "lleomc",
-  "description": "Convierte el spam rapido de toques en el mismo patron de pulsacion automatica de Wave.",
+  "description": "Activa o desactiva el spam automático de Wave con una tecla configurable (B por defecto), sin botón flotante.",
   "tags": [
     "gameplay",
     "utility"
@@ -55,6 +55,13 @@
       "default": 300,
       "min": 150,
       "max": 700
+    },
+    "toggle-auto-spam-key": {
+      "type": "keybind",
+      "name": "Tecla para activar/desactivar Spam automático",
+      "description": "Cada pulsación alterna entre Spam ON y Spam OFF durante un nivel.",
+      "default": "B",
+      "category": "gameplay"
     }
   }
 }
